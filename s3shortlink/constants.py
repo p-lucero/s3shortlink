@@ -1,6 +1,7 @@
 alphanumerics = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 lowercase_alphanumerics = "abcdefghijklmnopqrstuvwxyz1234567890"
 
+valid_cmds = {'create', 'list', 'modify', 'delete'}
 valid_bucket_characters = set(lowercase_alphanumerics).union({'.', '-'})
 
 template_HTML = """<!DOCTYPE html>

@@ -14,7 +14,8 @@ setuptools.setup(
     url="https://github.com/p-lucero/s3-shortlink",
     packages=setuptools.find_packages(),
     install_requires=[
-        'boto3'
+        'boto3',
+        'validators'
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
