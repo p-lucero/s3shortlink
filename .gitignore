@@ -1,0 +1,4 @@
+# Artifacts for building for PyPI
+build/
+dist/
+*.egg-info/
