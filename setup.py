@@ -14,7 +14,7 @@ setuptools.setup(
     url="https://github.com/p-lucero/s3-shortlink",
     packages=setuptools.find_packages(),
     install_requires=[
-        'awscli'
+        'boto3'
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
