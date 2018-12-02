@@ -208,8 +208,8 @@ def main():
         k = Key(bucket)
         k.key = link_name
         k.content_type = 'text/html'
-        k.set_contents_from_string(constants.template_HTML.format(args.url, args.url, args.url), policy='public-read')
         k.set_metadata('url', args.url)
+        k.set_contents_from_string(constants.template_HTML.format(args.url, args.url, args.url), policy='public-read')
         print(f"Created shortlink to {args.url} at {constants.s3_basepath.format(bucket_name, link_name)}")
 
     elif args.list:
@@ -243,19 +243,41 @@ def main():
             print("\tNo matching shortlinks found.")
 
     elif args.modify:
-        pass
+        keylist = bucket.list()
+        if args.search_type == "url":
+            matches = [key for key in keylist if bucket.get_key(key.name).get_metadata("url") == args.query and key.name != args.new_value]
+            if len(matches) == 0:
+                print("No match found for modify operation.") # TODO make error message more descriptive
+            else:
+                pass # TODO create a new object
+        else:
+            matches = [key for key in keylist if key.name == args.query and bucket.get_key(key.name).get_metadata("url") != args.new_value]
+            if len(matches) == 0:
+                print("No match found for modify operation.") # TODO make error message more descriptive
+            else:
+                active_shortlink = matches[0]
+                active_shortlink.set_metadata('url', args.new_value)
+                active_shortlink.set_contents_from_string(constants.template_HTML.format(args.new_value, args.new_value, args.new_value), policy='public-read')
+                print(f"Modified link {constants.s3_basepath.format(bucket_name, active_shortlink.name)} to point to {args.new_value}.")
 
     elif args.delete:
-        pass
-
-    # if args.create:
-    #     shortlink_create(args)
-    # elif args.list:
-    #     shortlink_list(args)
-    # elif args.modify:
-    #     shortlink_modify(args)
-    # elif args.delete:
-    #     shortlink_delete(args)
+        keylist = bucket.list()
+        if args.search_type == "url":
+            matches = [key for key in keylist if bucket.get_key(key.name).get_metadata("url") == args.query]
+            if not matches:
+                print(f"Unable to find a shortlink pointing to {args.query}")
+            for match in matches:
+                print(f"Deleting shortlink {constants.s3_basepath.format(bucket_name, match.name)} which pointed to {args.query}")
+                match.delete()
+        else:
+            matches = [key for key in keylist if key.name == args.query]
+            if len(matches) == 1:
+                print(f"Deleting shortlink {constants.s3_basepath.format(bucket_name, matches[0].name)} which pointed to {bucket.get_key(matches[0].name).get_metadata('url')}")
+                matches[0].delete()
+            elif len(matches) == 0:
+                print(f"Unable to find a shortlink with name {args.query}")
+            else:
+                print("What?")
 
 
 if __name__ == '__main__':
