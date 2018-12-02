@@ -1,5 +1,9 @@
 #!/usr/bin/python3
 
+# TODO set a special metadata bit `s3shortlink` and only operate on things that have this metadata bit
+# TODO functionalize more of this and split it out into more files semantically
+# TODO make this less kludge
+
 import argparse
 import ipaddress
 import os
@@ -12,7 +16,6 @@ from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 
 import constants
-# import link_create, link_list, link_modify, link_delete
 
 
 def gen_linkname_imgur():
@@ -49,8 +52,6 @@ def validate_bucket_name(name):
 def get_aws_keys(cur):
     cur.execute("SELECT * FROM access_data")
     credentials = cur.fetchall()
-    # print(credentials)
-    # sys.exit(0)
     if not credentials:
         print("No credentials found for Amazon Web Services.")
         access_key = ""
@@ -205,6 +206,7 @@ def main():
         if not validators.url(args.url):
             print("Invalid URL provided, cannot create shortlink.")
             sys.exit(1)
+        
         k = Key(bucket)
         k.key = link_name
         k.content_type = 'text/html'
