@@ -136,6 +136,7 @@ def main():
     conn.commit()
 
     parser = argparse.ArgumentParser(description="Simple shortlinking service on Amazon S3.")
+    parser.set_defaults(create=False, list=False, modify=False, delete=False)
     subparsers = parser.add_subparsers(help='Functions')
     parser.add_argument('--bucket', help='Manually select which Amazon S3 bucket to act upon.', default=None)
 
@@ -146,8 +147,8 @@ def main():
     create_parser.set_defaults(create=True)
 
     list_parser = subparsers.add_parser('list', help='List all existing shortlinks')
-    list_parser.add_argument('search_type', choices=['name', 'url'])
-    list_parser.add_argument('query')
+    list_parser.add_argument('search_type', choices=['name', 'url'], nargs='?')
+    list_parser.add_argument('query', nargs='?')
     list_parser.set_defaults(list=True)
 
     modify_parser = subparsers.add_parser('modify', help='Edit an existing shortlink')
@@ -164,9 +165,7 @@ def main():
     args = parser.parse_args()
     bucket_name = args.bucket
 
-    try:
-        args.create
-    except AttributeError:
+    if all(not x for x in [args.create, args.list, args.modify, args.delete]):
         sys.exit(parser.print_help())
 
     if args.create and args.gen_method and args.link_name:
@@ -185,7 +184,6 @@ def main():
     if create_required:
         try:
             bucket = s3conn.create_bucket(bucket_name)
-            # s3conn.BucketPolicy(bucket_name).put(Policy=template_bucket_policy.format(bucket_name))
         except S3CreateError:
             print("Unable to create bucket on Amazon S3 due to conflict.")
             sys.exit(1)
@@ -195,8 +193,6 @@ def main():
         except S3ResponseError:
             print("Unable to access bucket. Maybe it was deleted?")
             sys.exit(1)
-
-    k = Key(bucket)
 
     if args.create:
         link_name = None
@@ -209,13 +205,42 @@ def main():
         if not validators.url(args.url):
             print("Invalid URL provided, cannot create shortlink.")
             sys.exit(1)
+        k = Key(bucket)
         k.key = link_name
         k.content_type = 'text/html'
         k.set_contents_from_string(constants.template_HTML.format(args.url, args.url, args.url), policy='public-read')
+        k.set_metadata('url', args.url)
         print(f"Created shortlink to {args.url} at {constants.s3_basepath.format(bucket_name, link_name)}")
 
     elif args.list:
-        pass
+        filtering = False
+        if args.search_type and not args.query:
+            print("Must either specify both search_type and query, or neither (lists all)")
+        if args.search_type:
+            filtering = True
+        keylist = bucket.list()
+        filter_type = ""
+        if filtering:
+            filter_type = f" matching {args.search_type} {args.query}"
+        print(f"Shortlinks in bucket {bucket_name}{filter_type}:")
+
+        anyprinted = False
+        for key in keylist:
+            link_name = key.name
+            akey = bucket.get_key(link_name)
+            url = akey.get_metadata("url")
+            if filtering:
+                if args.search_type == "url" and url == args.query:  # FIXME this is a very lazy query method. use regex!!
+                    print(f"\t{constants.s3_basepath.format(bucket_name, link_name)} --> {url}")
+                    anyprinted = True
+                elif args.search_type == "name" and link_name == args.query:
+                    print(f"\t{constants.s3_basepath.format(bucket_name, link_name)} --> {url}")
+                    anyprinted = True
+            else:
+                print(f"\t{constants.s3_basepath.format(bucket_name, link_name)} --> {url}")
+                anyprinted = True
+        if not anyprinted:
+            print("\tNo matching shortlinks found.")
 
     elif args.modify:
         pass
