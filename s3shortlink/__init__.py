@@ -1,12 +1,15 @@
 #!/usr/bin/python3
 
 import argparse
-import boto3
 import ipaddress
 import os
 import random
 import sqlite3
 import sys
+import validators
+
+from boto.s3.connection import S3Connection
+from boto.s3.key import Key
 
 import constants
 # import link_create, link_list, link_modify, link_delete
@@ -18,9 +21,9 @@ def gen_linkname_imgur():
 
 def gen_linkname_gfycat():
     base = ''
-    base += append(random.choice(constants.adjectives).title())
-    base += append(random.choice(constants.adjectives).title())
-    base += append(random.choice(constants.animals).title())
+    base += random.choice(constants.adjectives).title()
+    base += random.choice(constants.adjectives).title()
+    base += random.choice(constants.animals).title()
     return base
 
 
@@ -46,6 +49,8 @@ def validate_bucket_name(name):
 def get_aws_keys(cur):
     cur.execute("SELECT * FROM access_data")
     credentials = cur.fetchall()
+    # print(credentials)
+    # sys.exit(0)
     if not credentials:
         print("No credentials found for Amazon Web Services.")
         access_key = ""
@@ -61,15 +66,18 @@ def get_aws_keys(cur):
             if len(secret_key) != 40:
                 print("Invalid secret key, does not have length 40.")
 
-        cur.execute("INSERT INTO access_data VALUES (?, ?)", (access_key, secret_key))
+        cur.execute("INSERT INTO access_data (access_key, secret_key) VALUES (?, ?)", (access_key, secret_key))
+
+        return access_key, secret_key
     else:
-        return credentials[0]
+        return (credentials[0][1], credentials[0][2])
 
 
 def get_bucket_name(cur):
     cur.execute("SELECT * FROM buckets")
     buckets = cur.fetchall()
     final_bucket = None
+    create_required = False
     if not buckets:
         print("No buckets found on Amazon Web Services.")
         default_bucket_name = "shortlink-" + gen_linkname_imgur()
@@ -87,8 +95,9 @@ def get_bucket_name(cur):
             bucket_name = custom_bucket_name
         else:
             bucket_name = default_bucket_name
-        cur.execute("INSERT INTO buckets VALUES (?)", (bucket_name))
+        cur.execute("INSERT INTO buckets (bucket_id) VALUES (?)", (bucket_name,))
         final_bucket = bucket_name
+        create_required = True
 
     elif len(buckets) > 1:
         print("Multiple buckets found in the database.")
@@ -104,12 +113,12 @@ def get_bucket_name(cur):
                 pass
             if index not in range(1, len(buckets) + 1):
                 print("Invalid bucket index.")
-        final_bucket = buckets[index - 1]
+        final_bucket = buckets[index - 1][1]
 
     else:
-        final_bucket = buckets[0]
+        final_bucket = buckets[0][1]
 
-    return final_bucket
+    return final_bucket, create_required
 
 
 def main():
@@ -155,13 +164,64 @@ def main():
     args = parser.parse_args()
     bucket_name = args.bucket
 
+    try:
+        args.create
+    except AttributeError:
+        sys.exit(parser.print_help())
+
     if args.create and args.gen_method and args.link_name:
         print("Cannot specify both --gen_method and --link_name.")
         sys.exit(parser.print_help())
 
     access, secret = get_aws_keys(cur)
     if not bucket_name:
-        bucket_name = get_bucket_name(cur)
+        bucket_name, create_required = get_bucket_name(cur)
+    conn.commit()
+
+    s3conn = S3Connection(access, secret)
+
+    bucket = None
+
+    if create_required:
+        try:
+            bucket = s3conn.create_bucket(bucket_name)
+            # s3conn.BucketPolicy(bucket_name).put(Policy=template_bucket_policy.format(bucket_name))
+        except S3CreateError:
+            print("Unable to create bucket on Amazon S3 due to conflict.")
+            sys.exit(1)
+    else:
+        try:
+            bucket = s3conn.get_bucket(bucket_name)
+        except S3ResponseError:
+            print("Unable to access bucket. Maybe it was deleted?")
+            sys.exit(1)
+
+    k = Key(bucket)
+
+    if args.create:
+        link_name = None
+        if args.link_name:
+            link_name = link_name
+        elif args.gen_method == 'gfycat':
+            link_name = gen_linkname_gfycat()
+        else:
+            link_name = gen_linkname_imgur()
+        if not validators.url(args.url):
+            print("Invalid URL provided, cannot create shortlink.")
+            sys.exit(1)
+        k.key = link_name
+        k.content_type = 'text/html'
+        k.set_contents_from_string(constants.template_HTML.format(args.url, args.url, args.url), policy='public-read')
+        print(f"Created shortlink to {args.url} at {constants.s3_basepath.format(bucket_name, link_name)}")
+
+    elif args.list:
+        pass
+
+    elif args.modify:
+        pass
+
+    elif args.delete:
+        pass
 
     # if args.create:
     #     shortlink_create(args)

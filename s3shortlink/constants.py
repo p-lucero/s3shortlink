@@ -4,6 +4,8 @@ lowercase_alphanumerics = "abcdefghijklmnopqrstuvwxyz1234567890"
 valid_cmds = {'create', 'list', 'modify', 'delete'}
 valid_bucket_characters = set(lowercase_alphanumerics).union({'.', '-'})
 
+s3_basepath = "https://s3.amazonaws.com/{}/{}"
+
 template_HTML = """<!DOCTYPE html>
 <html>
 <head>
@@ -11,22 +13,22 @@ template_HTML = """<!DOCTYPE html>
 </head>
 <body>
     <p>
-        Redirecting you to f{} in <span class="counter">5</span> seconds...
+        Redirecting you to <a href={}>{}</a> in <span class="counter">5</span> seconds...
     </p>
 </body>
 </html>
 
 <script>
-    function updateCounter(t){
-        return function(){
+    function updateCounter(t){{
+        return function(){{
             const myElt = document.querySelector('.counter')
             myElt.innerHTML = t
-        }
-    }
+        }}
+    }}
 
-    function redirect(){
-        window.location.replace("f{}")
-    }
+    function redirect(){{
+        window.location.replace("{}")
+    }}
 
     setTimeout(updateCounter(4), 1000);
     setTimeout(updateCounter(3), 2000);
@@ -35,6 +37,17 @@ template_HTML = """<!DOCTYPE html>
     setTimeout(updateCounter(0), 5000);
     setTimeout(redirect, 5000);
 </script>"""
+
+template_bucket_policy = """{{
+  "Version": "2008-10-17",
+  "Statement": [{{
+    "Sid": "AllowPublicRead",
+    "Effect": "Allow",
+    "Principal": {{ "AWS": "*" }},
+    "Action": ["s3:GetObject"],
+    "Resource": ["arn:aws:s3:::{}/*" ]
+  }}]
+}}"""
 
 adjectives = [
     'aback',
