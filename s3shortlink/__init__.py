@@ -5,6 +5,7 @@ import sys
 # pattern adapted from https://chase-seibert.github.io/blog/2014/03/21/python-multilevel-argparse.html
 class S3ShortlinkInvoker:
     def __init__(self):
+        '''Class-based argument parser.'''
         description = 'Simple self-hosted shortlinking service cmdlet on Amazon S3'
         self.config_description = 'Get, set, and unset configuration settings'
         self.create_description = 'Create a new shortlink'
@@ -42,6 +43,7 @@ Available subcommands:
         subcommand_functions[args.command]()
 
     def _generate_crud_parser(self, description, usage=None):
+        '''Scaffold a parser for CRUD operations, which require access key, secret key, and bucket ID.'''
         parser = argparse.ArgumentParser(description=description, usage=usage)
         parser.add_argument('-a', '--access', help='Access key to be used in connecting to Amazon S3')
         parser.add_argument('-b', '--bucket', help='Bucket name on Amazon S3 to use for CRUD operation')
@@ -50,6 +52,7 @@ Available subcommands:
         return parser
 
     def config(self):
+        '''Entry point for config subcommand.'''
         parser = argparse.ArgumentParser(description=self.config_description)
         parser.add_argument('-u', '--unset', action='store_true', help='Flag to be passed to unset an option')
         parser.add_argument('option_name', help='Name of configuration option to get/set/unset')
@@ -57,8 +60,14 @@ Available subcommands:
         parser.parse_args(sys.argv[2:])
 
     def create(self):
+        '''Entry point for create subcommand.'''
         parser = self._generate_crud_parser(self.create_description)
         name_gen_method = parser.add_mutually_exclusive_group(required=False)
+        # TODO allow the coded charset/mnemonic lexicon to be specified on the command line
+        # by feeding in the appropriate file name
+
+        # TODO allow the user to pass their own template html file as a command line argument
+        # in both this method and the modify method
         name_gen_method.add_argument('-c', '--coded', action='store_true', help='Generate shortlink name using coded, alphanumeric style')
         name_gen_method.add_argument('-n', '--name', help='Give shortlink a name manually')
         name_gen_method.add_argument('-m', '--mnemonic', action='store_true', help='Generate shortlink name as a mnemonic, using human-readable words')
@@ -66,17 +75,20 @@ Available subcommands:
         parser.parse_args(sys.argv[2:])
 
     def delete(self):
+        '''Entry point for delete subcommand.'''
         parser = self._generate_crud_parser(self.delete_description)
         parser.add_argument('shortlink_name', help='Name of the shortlink to be removed')
         parser.parse_args(sys.argv[2:])
 
     def modify(self):
+        '''Entry point for modify subcommand.'''
         parser = self._generate_crud_parser(self.modify_description)
         parser.add_argument('shortlink_name', help='Name of the original shortlink to be changed')
         parser.add_argument('long_url', help='New destination for the original shortlink')
         parser.parse_args(sys.argv[2:])
 
     def list(self):
+        '''Entry point for list subcommand.'''
         parser = self._generate_crud_parser(self.list_description)
         parser.parse_args(sys.argv[2:])
 
